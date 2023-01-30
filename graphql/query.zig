@@ -20,10 +20,12 @@ const QueryDef = struct {
 const QueryParser = struct {
     const Self = @This();
 
-    const NumSelectorPools = 256;
+    // The number of top-level selectors.
+    const NumSelectorPools = 2;
 
     const SelectorPool = struct {
-        const Size = 256;
+        // Total number of selectors per top-level selector we'll allow.
+        const Size = 1024;
 
         buf: [Size]QueryDef.Selector = [_]QueryDef.Selector{
             .{
