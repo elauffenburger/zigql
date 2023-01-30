@@ -6,14 +6,20 @@ const MaxTypes = 256;
 const MaxIdentLen = 256;
 
 // pub fn Schema(comptime schema: []const u8) !type {
-//     const schemaInfo = try SchemaParser.init(schema).parse();
+//     const schemaDef = try SchemaParser.init(schema).parse();
 
 //     return struct {
-//         pub fn query(comptime query: []const u8) !type {}
+//         pub fn query(comptime query: []const u8) !type {
+            
+//         }
+
+//         pub fn def() SchemaDef {
+//             return schemaDef;
+//         }
 //     };
 // }
 
-const SchemaInfo = struct {
+const SchemaDef = struct {
     const Type = struct {
         const DefTag = enum {
             @"struct",
@@ -45,21 +51,21 @@ const SchemaParser = struct {
     input: []const u8,
     cursor: u32 = 0,
 
-    types: [MaxTypes]SchemaInfo.Type,
+    types: [MaxTypes]SchemaDef.Type,
     numTypes: u32 = 0,
 
-    fields: [MaxFields]SchemaInfo.Type.Struct.Field,
+    fields: [MaxFields]SchemaDef.Type.Struct.Field,
     numFields: u32 = 0,
 
     fn init(schema: []const u8) Self {
         return .{
             .input = schema,
-            .types = [_]SchemaInfo.Type{.{ .name = undefined, .def = undefined }} ** MaxTypes,
-            .fields = std.mem.zeroes([MaxFields]SchemaInfo.Type.Struct.Field),
+            .types = [_]SchemaDef.Type{.{ .name = undefined, .def = undefined }} ** MaxTypes,
+            .fields = std.mem.zeroes([MaxFields]SchemaDef.Type.Struct.Field),
         };
     }
 
-    fn parse(self: *Self) !SchemaInfo {
+    fn parse(self: *Self) !SchemaDef {
         while (!self.isEOF()) {
             const token = self.nextToken();
             if (token == null) {
@@ -87,7 +93,7 @@ const SchemaParser = struct {
         self.assertNextTokenEq("{");
 
         // Read fields.
-        var typ: SchemaInfo.Type = .{
+        var typ: SchemaDef.Type = .{
             .name = typeName.?,
             .def = .{
                 .@"struct" = .{
