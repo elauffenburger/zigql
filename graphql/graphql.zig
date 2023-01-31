@@ -11,42 +11,42 @@ const QueryDef = queryPkg.QueryDef;
 pub fn Schema(comptime schema: []const u8) !type {
     return struct {
         pub fn typeForQuery(comptime query: []const u8) !type {
-            var typesBuf = [_]SchemaDef.Type{.{ .name = undefined, .def = undefined }} ** 10;
-            var fieldsBuf = [_]SchemaDef.Type.Struct.Field{.{ .name = undefined, .typeName = undefined }} ** 10;
-            var schemaParser = SchemaParser.init(schema, &typesBuf, &fieldsBuf);
-            const schemaDef = try schemaParser.parse();
+            var schemaDef = blk: {
+                const MaxTypes = 10;
+                const MaxFields = 10;
+
+                var typesBuf = [_]SchemaDef.Type{.{ .name = undefined, .def = undefined }} ** MaxTypes;
+                var fieldsBuf = [_]SchemaDef.Type.Struct.Field{.{ .name = undefined, .typeName = undefined }} ** MaxFields;
+                var schemaParser = SchemaParser.init(schema, &typesBuf, &fieldsBuf);
+
+                break :blk try schemaParser.parse();
+            };
+
+            var selectorPools = blk: {
+                const NumPools = 10;
+                const NumSelectorsPerPool = 10;
+
+                var pools: [NumPools]QueryParser.SelectorPool = undefined;
+                var poolBufs: [NumPools * NumSelectorsPerPool]QueryDef.Selector = [_]QueryDef.Selector{
+                    .{ .field = .{ .name = undefined, .children = undefined } },
+                } ** (NumPools * NumSelectorsPerPool);
+                for (pools) |_, i| {
+                    pools[i] = QueryParser.SelectorPool.init(poolBufs[i .. (i + 1) * NumSelectorsPerPool]);
+                }
+
+                break :blk pools;
+            };
+
+            var queryParser = QueryParser.init(query, &selectorPools);
+            const queryDef = try queryParser.parse();
 
             var typeGenerator = TypeGenerator(schemaDef).init();
+            const queryType = try typeGenerator.genTypeForSelector(queryDef.selector.?, try typeGenerator.getTypeDefFromSchema("Query"));
 
-            const NumPools = 2;
-            const BufSize = 2;
-
-            var pools: [NumPools]QueryParser.SelectorPool = undefined;
-            var poolBufs: [NumPools * BufSize]QueryDef.Selector = [_]QueryDef.Selector{
-                .{ .field = .{ .name = undefined, .children = undefined } },
-            } ** (NumPools * BufSize);
-            for (pools) |_, i| {
-                pools[i] = QueryParser.SelectorPool.init(poolBufs[i .. (i + 1) * BufSize]);
-            }
-
-            // var selectorPools = [_]QueryParser.SelectorPool{
-            //     QueryParser.SelectorPool.init(&[_]QueryDef.Selector{
-            //         .{
-            //             .field = .{
-            //                 .name = undefined,
-            //                 .children = undefined,
-            //             },
-            //         },
-            //     } ** 10),
-            // } ** 10;
-            var queryParser = QueryParser.init(query, &pools);
-            const queryDef = try queryParser.parse();
-            // const queryType = try typeGenerator.genTypeForSelector(schemaDef, queryDef.selector);
-
-            // _ = queryType;
-            _ = queryDef;
+            _ = queryType;
+            // _ = queryDef;
             // _ = queryParser;
-            _ = typeGenerator;
+            // _ = typeGenerator;
 
             return struct {
                 // const Query = queryType;
@@ -81,7 +81,7 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
             return .{};
         }
 
-        fn genTypeForSelector(self: *Self, selector: QueryDef.Selector, parentType: SchemaDef.Type) !type {
+        pub fn genTypeForSelector(comptime self: *Self, comptime selector: QueryDef.Selector, comptime parentType: SchemaDef.Type) !type {
             switch (selector) {
                 .field => {
                     // Generate a field for each child selector in the selector.
@@ -103,19 +103,19 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
                                                 break :childTypeDef try self.getTypeDefFromSchema(field.typeName);
                                             }
 
-                                            @compileError("genTypeForSelector");
+                                            @compileError("unknown field " ++ child.field.name ++ " in type " ++ parentType.name);
                                         },
                                     }
                                 };
 
                                 // Generate the field.
-                                fields[i] = @Type(.{
+                                fields[i] = .{
                                     .name = selector.field.name,
-                                    .field_type = try self.getOrGenType(childTypeDef),
+                                    .type = try self.getOrGenType(childTypeDef),
                                     .default_value = null,
                                     .is_comptime = false,
                                     .alignment = 0,
-                                });
+                                };
                             },
                         }
                     }
@@ -133,16 +133,16 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
             }
         }
 
-        fn getOrGenType(self: *Self, typeDef: SchemaDef.Type) !type {
+        fn getOrGenType(comptime self: *Self, comptime typeDef: SchemaDef.Type) !type {
             // Check if we've already generated a type for the type def.
-            for (self.builtTypes) |typ| {
+            for (self.builtTypes[0..self.numBuiltTypes]) |typ| {
                 if (std.mem.eql(u8, typ.name, typeDef.name)) {
                     return typ.t;
                 }
             }
 
             // Generate a new type.
-            self.builtTypes[self.numBuildTypes] = .{
+            self.builtTypes[self.numBuiltTypes] = .{
                 .name = typeDef.name,
                 .t = @Type(typ: {
                     switch (typeDef.def) {
@@ -151,13 +151,13 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
 
                             var fields: [strct.fields.len]std.builtin.Type.StructField = undefined;
                             for (strct.fields) |field, i| {
-                                fields[i] = @Type(.{
+                                fields[i] = .{
                                     .name = field.name,
-                                    .field_type = try self.getOrGenType(try self.getTypeDefFromSchema(field.typeName)),
+                                    .@"type" = try self.getOrGenType(try self.getTypeDefFromSchema(field.typeName)),
                                     .default_value = null,
                                     .is_comptime = false,
                                     .alignment = 0,
-                                });
+                                };
                             }
 
                             break :typ .{
@@ -174,14 +174,16 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
             };
         }
 
-        fn getTypeDefFromSchema(typeName: []const u8) !SchemaDef.Type {
+        pub fn getTypeDefFromSchema(comptime self: Self, typeName: []const u8) !SchemaDef.Type {
+            _ = self;
+
             for (schemaDef.types) |typ| {
                 if (std.mem.eql(u8, typ.name, typeName)) {
-                    return typeName;
+                    return typ;
                 }
             }
 
-            @compileError("getTypeFromSchema");
+            @compileError("unknown type " ++ typeName ++ "\n");
         }
     };
 }
@@ -199,9 +201,11 @@ test "can gen types for user query" {
     );
 
     _ = try schema.typeForQuery(
-        \\ user {
+        \\ query {
+        \\  user {
         \\   id
         \\   name
+        \\  }
         \\ }
     );
 }
