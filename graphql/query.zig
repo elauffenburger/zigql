@@ -1,12 +1,12 @@
 const std = @import("std");
 
 pub const QueryDef = struct {
-    const Selector = union(Tag) {
-        const Tag = enum {
+    pub const Selector = union(Tag) {
+        pub const Tag = enum {
             field,
         };
 
-        const FieldNode = struct {
+        pub const FieldNode = struct {
             name: []const u8,
             children: []const Selector,
         };
@@ -20,26 +20,15 @@ pub const QueryDef = struct {
 pub const QueryParser = struct {
     const Self = @This();
 
-    const NumSelectorPools = 256;
-
-    const SelectorPool = struct {
-        const Size = 256;
-
-        buf: [Size]QueryDef.Selector = [_]QueryDef.Selector{
-            .{
-                .field = .{
-                    .name = undefined,
-                    .children = undefined,
-                },
-            },
-        } ** Size,
+    pub const SelectorPool = struct {
+        buf: []QueryDef.Selector,
         len: u32 = 0,
 
-        fn init() SelectorPool {
-            return .{};
+        pub fn init(storage: []QueryDef.Selector) SelectorPool {
+            return .{ .buf = storage };
         }
 
-        fn push(self: *SelectorPool, val: QueryDef.Selector) !void {
+        pub fn push(self: *SelectorPool, val: QueryDef.Selector) !void {
             if (self.len >= self.buf.len) {
                 unreachable;
             }
@@ -48,7 +37,7 @@ pub const QueryParser = struct {
             self.len += 1;
         }
 
-        fn slice(self: SelectorPool) []const QueryDef.Selector {
+        pub fn slice(self: SelectorPool) []const QueryDef.Selector {
             return self.buf[0..self.len];
         }
     };
@@ -56,12 +45,13 @@ pub const QueryParser = struct {
     input: []const u8,
     cursor: u32 = 0,
 
-    selectorPools: [NumSelectorPools]SelectorPool = [_]SelectorPool{SelectorPool.init()} ** NumSelectorPools,
+    selectorPools: []SelectorPool,
     numSelectorPools: u32 = 0,
 
-    pub fn init(query: []const u8) Self {
+    pub fn init(query: []const u8, selectorPools: []SelectorPool) Self {
         return .{
             .input = query,
+            .selectorPools = selectorPools,
         };
     }
 
@@ -204,11 +194,21 @@ pub const QueryParser = struct {
 test "parses user query" {
     const assert = std.debug.assert;
 
+    var pools: [10]QueryParser.SelectorPool = undefined;
+    var poolBufs: [10 * 10]QueryDef.Selector = [_]QueryDef.Selector{
+        .{ .field = .{ .name = undefined, .children = undefined } },
+    } ** (100);
+    for (pools) |_, i| {
+        pools[i] = QueryParser.SelectorPool.init(poolBufs[i .. (i + 1) * 10]);
+    }
+
     var parser = QueryParser.init(
         \\ user {
         \\   id
         \\   name
         \\ }
+        ,
+        &pools,
     );
 
     const query = try parser.parse();

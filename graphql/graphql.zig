@@ -11,61 +11,48 @@ const QueryDef = queryPkg.QueryDef;
 pub fn Schema(comptime schema: []const u8) !type {
     return struct {
         pub fn typeForQuery(comptime query: []const u8) !type {
-            var schemaParser = SchemaParser.init(schema);
+            var typesBuf = [_]SchemaDef.Type{.{ .name = undefined, .def = undefined }} ** 10;
+            var fieldsBuf = [_]SchemaDef.Type.Struct.Field{.{ .name = undefined, .typeName = undefined }} ** 10;
+            var schemaParser = SchemaParser.init(schema, &typesBuf, &fieldsBuf);
             const schemaDef = try schemaParser.parse();
 
             var typeGenerator = TypeGenerator(schemaDef).init();
 
-            _ = typeGenerator;
-            _ = query;
+            const NumPools = 2;
+            const BufSize = 2;
 
-            // var queryParser = try QueryParser.init(query);
-            // const queryDef = queryParser.parse();
+            var pools: [NumPools]QueryParser.SelectorPool = undefined;
+            var poolBufs: [NumPools * BufSize]QueryDef.Selector = [_]QueryDef.Selector{
+                .{ .field = .{ .name = undefined, .children = undefined } },
+            } ** (NumPools * BufSize);
+            for (pools) |_, i| {
+                pools[i] = QueryParser.SelectorPool.init(poolBufs[i .. (i + 1) * BufSize]);
+            }
+
+            // var selectorPools = [_]QueryParser.SelectorPool{
+            //     QueryParser.SelectorPool.init(&[_]QueryDef.Selector{
+            //         .{
+            //             .field = .{
+            //                 .name = undefined,
+            //                 .children = undefined,
+            //             },
+            //         },
+            //     } ** 10),
+            // } ** 10;
+            var queryParser = QueryParser.init(query, &pools);
+            const queryDef = try queryParser.parse();
             // const queryType = try typeGenerator.genTypeForSelector(schemaDef, queryDef.selector);
+
+            // _ = queryType;
+            _ = queryDef;
+            // _ = queryParser;
+            _ = typeGenerator;
 
             return struct {
                 // const Query = queryType;
 
                 // query: Query,
             };
-        }
-    };
-}
-
-const FooDef = struct {
-    const Type = struct {
-        const DefTag = enum {
-            @"struct",
-        };
-
-        const Def = union(DefTag) {
-            @"struct": Struct,
-        };
-
-        const Struct = struct {
-            const Field = struct {
-                name: []const u8,
-                typeName: []const u8,
-            };
-
-            fields: []Field,
-        };
-
-        name: []const u8,
-        def: Def,
-    };
-
-    types: []Type,
-};
-
-fn Foo(comptime schemaDef: FooDef) type {
-    _ = schemaDef;
-
-    return struct {
-        const Self = @This();
-
-        fn init() Self {
-            return .{};
         }
     };
 }

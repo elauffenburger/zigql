@@ -37,17 +37,19 @@ pub const SchemaParser = struct {
     input: []const u8,
     cursor: u32 = 0,
 
-    types: [MaxTypes]SchemaDef.Type,
+    types: []SchemaDef.Type,
     numTypes: u32 = 0,
 
-    fields: [MaxFields]SchemaDef.Type.Struct.Field,
+    fields: []SchemaDef.Type.Struct.Field,
     numFields: u32 = 0,
 
-    pub fn init(schema: []const u8) Self {
+    pub fn init(schema: []const u8, typesBuf: []SchemaDef.Type, fieldsBuf: []SchemaDef.Type.Struct.Field) Self {
         return .{
             .input = schema,
-            .types = [_]SchemaDef.Type{.{ .name = undefined, .def = undefined }} ** MaxTypes,
-            .fields = std.mem.zeroes([MaxFields]SchemaDef.Type.Struct.Field),
+            .types = typesBuf,
+            .fields = fieldsBuf,
+            // .types = [_]SchemaDef.Type{.{ .name = undefined, .def = undefined }} ** MaxTypes,
+            // .fields = std.mem.zeroes([MaxFields]SchemaDef.Type.Struct.Field),
         };
     }
 
@@ -120,7 +122,7 @@ pub const SchemaParser = struct {
         }
 
         // Point to the block in the parser pool that we used for fields.
-        typ.def.@"struct".fields = self.fields[fieldsStart .. self.numFields];
+        typ.def.@"struct".fields = self.fields[fieldsStart..self.numFields];
 
         // Add the type.
         self.types[self.numTypes] = typ;
@@ -186,6 +188,9 @@ pub const SchemaParser = struct {
 test "parses user type" {
     const assert = std.debug.assert;
 
+    var typesBuf = [_]SchemaDef.Type{.{ .name = undefined, .def = undefined }} ** 10;
+    var fieldsBuf = [_]SchemaDef.Type.Struct.Field{.{ .name = undefined, .typeName = undefined }} ** 10;
+
     var parser = SchemaParser.init(
         \\ type User {
         \\  id: Int
@@ -195,6 +200,9 @@ test "parses user type" {
         \\ type Query {
         \\  user: User
         \\ }
+        ,
+        &typesBuf,
+        &fieldsBuf,
     );
 
     const schema = try parser.parse();
