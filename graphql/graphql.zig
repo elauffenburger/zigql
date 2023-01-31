@@ -124,8 +124,8 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
                     return @Type(.{
                         .Struct = .{
                             .layout = .Auto,
-                            .fields = &fields[0..],
-                            .decls = &[_]std.builtin.TypeInfo.Declaration{},
+                            .fields = fields[0..],
+                            .decls = &[_]std.builtin.Type.Declaration{},
                             .is_tuple = false,
                         },
                     });
@@ -142,7 +142,7 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
             }
 
             // Generate a new type.
-            self.builtTypes[self.numBuiltTypes] = .{
+            const typ = .{
                 .name = typeDef.name,
                 .t = @Type(typ: {
                     switch (typeDef.def) {
@@ -153,7 +153,16 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
                             for (strct.fields) |field, i| {
                                 fields[i] = .{
                                     .name = field.name,
-                                    .@"type" = try self.getOrGenType(try self.getTypeDefFromSchema(field.typeName)),
+                                    .type = blk: {
+                                        // Check if this is a built-in type or something we've already generated.
+                                        for (self.builtTypes[0..self.numBuiltTypes]) |typ| {
+                                            if (std.mem.eql(u8, typ.name, field.typeName)) {
+                                                break :blk typ.t;
+                                            }
+                                        }
+
+                                        break :blk try self.getOrGenType(try self.getTypeDefFromSchema(field.typeName));
+                                    },
                                     .default_value = null,
                                     .is_comptime = false,
                                     .alignment = 0,
@@ -164,7 +173,7 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
                                 .Struct = .{
                                     .layout = .Auto,
                                     .fields = fields[0..],
-                                    .decls = &[_]std.builtin.TypeInfo.Declaration{},
+                                    .decls = &[_]std.builtin.Type.Declaration{},
                                     .is_tuple = false,
                                 },
                             };
@@ -172,6 +181,9 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
                     }
                 }),
             };
+            self.builtTypes[self.numBuiltTypes] = typ;
+
+            return typ.t;
         }
 
         pub fn getTypeDefFromSchema(comptime self: Self, typeName: []const u8) !SchemaDef.Type {
