@@ -5,32 +5,18 @@ const MaxFields = 256;
 const MaxTypes = 256;
 const MaxIdentLen = 256;
 
-// pub fn Schema(comptime schema: []const u8) !type {
-//     const schemaDef = try SchemaParser.init(schema).parse();
-
-//     return struct {
-//         pub fn query(comptime query: []const u8) !type {
-            
-//         }
-
-//         pub fn def() SchemaDef {
-//             return schemaDef;
-//         }
-//     };
-// }
-
-const SchemaDef = struct {
-    const Type = struct {
-        const DefTag = enum {
+pub const SchemaDef = struct {
+    pub const Type = struct {
+        pub const DefTag = enum {
             @"struct",
         };
 
-        const Def = union(DefTag) {
+        pub const Def = union(DefTag) {
             @"struct": Struct,
         };
 
-        const Struct = struct {
-            const Field = struct {
+        pub const Struct = struct {
+            pub const Field = struct {
                 name: []const u8,
                 typeName: []const u8,
             };
@@ -45,7 +31,7 @@ const SchemaDef = struct {
     types: []Type,
 };
 
-const SchemaParser = struct {
+pub const SchemaParser = struct {
     const Self = @This();
 
     input: []const u8,
@@ -57,7 +43,7 @@ const SchemaParser = struct {
     fields: [MaxFields]SchemaDef.Type.Struct.Field,
     numFields: u32 = 0,
 
-    fn init(schema: []const u8) Self {
+    pub fn init(schema: []const u8) Self {
         return .{
             .input = schema,
             .types = [_]SchemaDef.Type{.{ .name = undefined, .def = undefined }} ** MaxTypes,
@@ -65,7 +51,7 @@ const SchemaParser = struct {
         };
     }
 
-    fn parse(self: *Self) !SchemaDef {
+    pub fn parse(self: *Self) !SchemaDef {
         while (!self.isEOF()) {
             const token = self.nextToken();
             if (token == null) {
@@ -102,7 +88,7 @@ const SchemaParser = struct {
             },
         };
 
-        var numFields: u32 = 0;
+        const fieldsStart = self.numFields;
         while (!self.isEOF()) {
             // Get field name.
             const maybeFieldName = self.nextToken();
@@ -125,17 +111,16 @@ const SchemaParser = struct {
             }
 
             // Add field to the parser field pool.
-            self.fields[numFields] = .{
+            self.fields[self.numFields] = .{
                 .name = maybeFieldName.?,
                 .typeName = fieldTypeName.?,
             };
 
-            numFields += 1;
+            self.numFields += 1;
         }
 
-        // Point to the block in the parser pool that we used for fields and update the pool.
-        typ.def.@"struct".fields = self.fields[self.numFields .. self.numFields + numFields];
-        self.numFields += numFields;
+        // Point to the block in the parser pool that we used for fields.
+        typ.def.@"struct".fields = self.fields[fieldsStart .. self.numFields];
 
         // Add the type.
         self.types[self.numTypes] = typ;
@@ -203,21 +188,32 @@ test "parses user type" {
 
     var parser = SchemaParser.init(
         \\ type User {
-        \\   id: Int
-        \\   name: String
+        \\  id: Int
+        \\  name: String
+        \\ }
+        \\
+        \\ type Query {
+        \\  user: User
         \\ }
     );
 
     const schema = try parser.parse();
-    assert(schema.types.len == 1);
+    assert(schema.types.len == 2);
 
-    const typ = schema.types[0];
-    assert(std.mem.eql(u8, typ.name, "User"));
-    assert(typ.def.@"struct".fields.len == 2);
+    const user = schema.types[0];
+    assert(std.mem.eql(u8, user.name, "User"));
+    assert(user.def.@"struct".fields.len == 2);
 
-    assert(std.mem.eql(u8, typ.def.@"struct".fields[0].name, "id"));
-    assert(std.mem.eql(u8, typ.def.@"struct".fields[0].typeName, "Int"));
+    assert(std.mem.eql(u8, user.def.@"struct".fields[0].name, "id"));
+    assert(std.mem.eql(u8, user.def.@"struct".fields[0].typeName, "Int"));
 
-    assert(std.mem.eql(u8, typ.def.@"struct".fields[1].name, "name"));
-    assert(std.mem.eql(u8, typ.def.@"struct".fields[1].typeName, "String"));
+    assert(std.mem.eql(u8, user.def.@"struct".fields[1].name, "name"));
+    assert(std.mem.eql(u8, user.def.@"struct".fields[1].typeName, "String"));
+
+    const query = schema.types[1];
+    assert(std.mem.eql(u8, query.name, "Query"));
+    assert(query.def.@"struct".fields.len == 1);
+
+    assert(std.mem.eql(u8, query.def.@"struct".fields[0].name, "user"));
+    assert(std.mem.eql(u8, query.def.@"struct".fields[0].typeName, "User"));
 }

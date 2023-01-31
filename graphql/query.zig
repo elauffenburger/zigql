@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const QueryDef = struct {
+pub const QueryDef = struct {
     const Selector = union(Tag) {
         const Tag = enum {
             field,
@@ -14,18 +14,16 @@ const QueryDef = struct {
         field: FieldNode,
     };
 
-    selectors: []const Selector,
+    selector: ?Selector,
 };
 
-const QueryParser = struct {
+pub const QueryParser = struct {
     const Self = @This();
 
-    // The number of top-level selectors.
-    const NumSelectorPools = 2;
+    const NumSelectorPools = 256;
 
     const SelectorPool = struct {
-        // Total number of selectors per top-level selector we'll allow.
-        const Size = 1024;
+        const Size = 256;
 
         buf: [Size]QueryDef.Selector = [_]QueryDef.Selector{
             .{
@@ -61,14 +59,28 @@ const QueryParser = struct {
     selectorPools: [NumSelectorPools]SelectorPool = [_]SelectorPool{SelectorPool.init()} ** NumSelectorPools,
     numSelectorPools: u32 = 0,
 
-    fn init(query: []const u8) Self {
+    pub fn init(query: []const u8) Self {
         return .{
             .input = query,
         };
     }
 
-    fn parse(self: *Self) !QueryDef {
-        return .{ .selectors = try self.parseSelectors() };
+    pub fn parse(self: *Self) !QueryDef {
+        return .{
+            .selector = blk: {
+                const selectors = try self.parseSelectors();
+
+                if (selectors.len == 0) {
+                    break :blk null;
+                }
+
+                if (selectors.len == 1) {
+                    break :blk selectors[0];
+                }
+
+                unreachable;
+            },
+        };
     }
 
     fn parseSelectors(self: *Self) anyerror![]const QueryDef.Selector {
@@ -200,9 +212,8 @@ test "parses user query" {
     );
 
     const query = try parser.parse();
-    assert(query.selectors.len == 1);
 
-    const user = query.selectors[0].field;
+    const user = query.selector.?.field;
     assert(std.mem.eql(u8, user.name, "user"));
     assert(user.children.len == 2);
 
