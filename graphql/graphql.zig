@@ -10,7 +10,7 @@ const QueryParser = queryPkg.QueryParser;
 const DefaultQueryParser = queryPkg.DefaultQueryParser;
 const QueryDef = queryPkg.QueryDef;
 
-pub fn Schema(comptime schema: []const u8) !type {
+pub fn Schema(comptime schema: []const u8) type {
     return struct {
         pub fn typeForQuery(comptime query: []const u8) !type {
             var schemaDef = blk: {
@@ -26,15 +26,10 @@ pub fn Schema(comptime schema: []const u8) !type {
             var typeGenerator = TypeGenerator(schemaDef).init();
             const queryType = try typeGenerator.genTypeForSelector(queryDef.selector.?, try typeGenerator.getTypeDefFromSchema("Query"));
 
-            _ = queryType;
-            // _ = queryDef;
-            // _ = queryParser;
-            // _ = typeGenerator;
-
             return struct {
-                // const Query = queryType;
+                const Query = queryType;
 
-                // query: Query,
+                query: Query,
             };
         }
     };
@@ -93,7 +88,7 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
 
                                 // Generate the field.
                                 fields[i] = .{
-                                    .name = selector.field.name,
+                                    .name = child.field.name,
                                     .type = try self.getOrGenType(childTypeDef),
                                     .default_value = null,
                                     .is_comptime = false,
@@ -184,7 +179,7 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
 }
 
 test "can gen types for user query" {
-    const schema = try Schema(
+    const schema = Schema(
         \\ type User {
         \\  id: Int
         \\  name: String
@@ -195,7 +190,7 @@ test "can gen types for user query" {
         \\ }
     );
 
-    _ = try schema.typeForQuery(
+    const typ = try schema.typeForQuery(
         \\ query {
         \\  user {
         \\   id
@@ -203,4 +198,7 @@ test "can gen types for user query" {
         \\  }
         \\ }
     );
+
+    var inst: typ = .{.query = .{.user = .{.id = 123, .name = "foo"}}};
+    std.debug.print("\n{}\n", inst.query);
 }
