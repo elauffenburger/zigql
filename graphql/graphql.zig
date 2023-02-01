@@ -2,43 +2,26 @@ const std = @import("std");
 
 const schemaPkg = @import("schema.zig");
 const SchemaParser = schemaPkg.SchemaParser;
+const DefaultSchemaParser = schemaPkg.DefaultSchemaParser;
 const SchemaDef = schemaPkg.SchemaDef;
 
 const queryPkg = @import("query.zig");
 const QueryParser = queryPkg.QueryParser;
+const DefaultQueryParser = queryPkg.DefaultQueryParser;
 const QueryDef = queryPkg.QueryDef;
 
 pub fn Schema(comptime schema: []const u8) !type {
     return struct {
         pub fn typeForQuery(comptime query: []const u8) !type {
             var schemaDef = blk: {
-                const MaxTypes = 10;
-                const MaxFields = 10;
-
-                var typesBuf = [_]SchemaDef.Type{.{ .name = undefined, .def = undefined }} ** MaxTypes;
-                var fieldsBuf = [_]SchemaDef.Type.Struct.Field{.{ .name = undefined, .typeName = undefined }} ** MaxFields;
-                var schemaParser = SchemaParser.init(schema, &typesBuf, &fieldsBuf);
-
-                break :blk try schemaParser.parse();
+                var parser = DefaultSchemaParser(schema);
+                break :blk try parser.parse();
             };
 
-            var selectorPools = blk: {
-                const NumPools = 10;
-                const NumSelectorsPerPool = 10;
-
-                var pools: [NumPools]QueryParser.SelectorPool = undefined;
-                var poolBufs: [NumPools * NumSelectorsPerPool]QueryDef.Selector = [_]QueryDef.Selector{
-                    .{ .field = .{ .name = undefined, .children = undefined } },
-                } ** (NumPools * NumSelectorsPerPool);
-                for (pools) |_, i| {
-                    pools[i] = QueryParser.SelectorPool.init(poolBufs[i .. (i + 1) * NumSelectorsPerPool]);
-                }
-
-                break :blk pools;
+            const queryDef = blk: {
+                var parser = DefaultQueryParser(query);
+                break :blk try parser.parse();
             };
-
-            var queryParser = QueryParser.init(query, &selectorPools);
-            const queryDef = try queryParser.parse();
 
             var typeGenerator = TypeGenerator(schemaDef).init();
             const queryType = try typeGenerator.genTypeForSelector(queryDef.selector.?, try typeGenerator.getTypeDefFromSchema("Query"));

@@ -17,6 +17,25 @@ pub const QueryDef = struct {
     selector: ?Selector,
 };
 
+pub fn DefaultQueryParser(query: []const u8) QueryParser {
+    var selectorPools = blk: {
+        const NumPools = 10;
+        const NumSelectorsPerPool = 10;
+
+        var pools: [NumPools]QueryParser.SelectorPool = undefined;
+        var poolBufs: [NumPools * NumSelectorsPerPool]QueryDef.Selector = [_]QueryDef.Selector{
+            .{ .field = .{ .name = undefined, .children = undefined } },
+        } ** (NumPools * NumSelectorsPerPool);
+        for (pools) |_, i| {
+            pools[i] = QueryParser.SelectorPool.init(poolBufs[i .. (i + 1) * NumSelectorsPerPool]);
+        }
+
+        break :blk pools;
+    };
+
+    return QueryParser.init(query, &selectorPools);
+}
+
 pub const QueryParser = struct {
     const Self = @This();
 
@@ -194,21 +213,11 @@ pub const QueryParser = struct {
 test "parses user query" {
     const assert = std.debug.assert;
 
-    var pools: [10]QueryParser.SelectorPool = undefined;
-    var poolBufs: [10 * 10]QueryDef.Selector = [_]QueryDef.Selector{
-        .{ .field = .{ .name = undefined, .children = undefined } },
-    } ** (100);
-    for (pools) |_, i| {
-        pools[i] = QueryParser.SelectorPool.init(poolBufs[i .. (i + 1) * 10]);
-    }
-
-    var parser = QueryParser.init(
+    var parser = DefaultQueryParser(
         \\ user {
         \\   id
         \\   name
         \\ }
-        ,
-        &pools,
     );
 
     const query = try parser.parse();

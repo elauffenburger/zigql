@@ -1,8 +1,6 @@
 const std = @import("std");
 const TypeInfo = std.builtin.TypeInfo;
 
-const MaxFields = 256;
-const MaxTypes = 256;
 const MaxIdentLen = 256;
 
 pub const SchemaDef = struct {
@@ -31,6 +29,15 @@ pub const SchemaDef = struct {
     types: []Type,
 };
 
+pub fn DefaultSchemaParser(schema: []const u8) SchemaParser {
+    const MaxTypes = 10;
+    const MaxFields = 10;
+
+    var typesBuf = [_]SchemaDef.Type{.{ .name = undefined, .def = undefined }} ** MaxTypes;
+    var fieldsBuf = [_]SchemaDef.Type.Struct.Field{.{ .name = undefined, .typeName = undefined }} ** MaxFields;
+    return SchemaParser.init(schema, &typesBuf, &fieldsBuf);
+}
+
 pub const SchemaParser = struct {
     const Self = @This();
 
@@ -48,8 +55,6 @@ pub const SchemaParser = struct {
             .input = schema,
             .types = typesBuf,
             .fields = fieldsBuf,
-            // .types = [_]SchemaDef.Type{.{ .name = undefined, .def = undefined }} ** MaxTypes,
-            // .fields = std.mem.zeroes([MaxFields]SchemaDef.Type.Struct.Field),
         };
     }
 
@@ -200,7 +205,7 @@ test "parses user type" {
         \\ type Query {
         \\  user: User
         \\ }
-        ,
+    ,
         &typesBuf,
         &fieldsBuf,
     );
