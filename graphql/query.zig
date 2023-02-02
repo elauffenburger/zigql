@@ -23,9 +23,7 @@ pub fn DefaultQueryParser(query: []const u8) QueryParser {
         const NumSelectorsPerPool = 10;
 
         var pools: [NumPools]QueryParser.SelectorPool = undefined;
-        var poolBufs: [NumPools * NumSelectorsPerPool]QueryDef.Selector = [_]QueryDef.Selector{
-            .{ .field = .{ .name = undefined, .children = undefined } },
-        } ** (NumPools * NumSelectorsPerPool);
+        var poolBufs: [NumPools * NumSelectorsPerPool]QueryDef.Selector = [_]QueryDef.Selector{undefined} ** (NumPools * NumSelectorsPerPool);
         for (pools) |_, i| {
             pools[i] = QueryParser.SelectorPool.init(poolBufs[i .. (i + 1) * NumSelectorsPerPool]);
         }

@@ -14,7 +14,13 @@ pub fn Schema(comptime schema: []const u8) type {
     return struct {
         pub fn typeForQuery(comptime query: []const u8) !type {
             var schemaDef = blk: {
-                var parser = DefaultSchemaParser(schema);
+                const MaxTypes = 10;
+                const MaxFields = 10;
+
+                var typesBuf = [_]SchemaDef.Type{undefined} ** MaxTypes;
+                var fieldsBuf = [_]SchemaDef.Type.Struct.Field{undefined} ** MaxFields;
+                var parser = SchemaParser.init(schema, &typesBuf, &fieldsBuf);
+
                 break :blk try parser.parse();
             };
 
@@ -49,10 +55,7 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
     return struct {
         const Self = @This();
 
-        builtTypes: [schemaDef.types.len + builtInTypes.len]TypeAndName = builtInTypes ++ [_]TypeAndName{
-            .{ .name = undefined, .t = undefined },
-        } ** schemaDef.types.len,
-
+        builtTypes: [schemaDef.types.len + builtInTypes.len]TypeAndName = builtInTypes ++ [_]TypeAndName{undefined} ** schemaDef.types.len,
         numBuiltTypes: u32 = builtInTypes.len,
 
         fn init() Self {
@@ -199,6 +202,6 @@ test "can gen types for user query" {
         \\ }
     );
 
-    var inst: typ = .{.query = .{.user = .{.id = 123, .name = "foo"}}};
+    var inst: typ = .{ .query = .{ .user = .{ .id = 123, .name = "foo" } } };
     std.debug.print("\n{}\n", inst.query);
 }

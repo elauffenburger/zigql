@@ -29,15 +29,6 @@ pub const SchemaDef = struct {
     types: []Type,
 };
 
-pub fn DefaultSchemaParser(schema: []const u8) SchemaParser {
-    const MaxTypes = 10;
-    const MaxFields = 10;
-
-    var typesBuf = [_]SchemaDef.Type{.{ .name = undefined, .def = undefined }} ** MaxTypes;
-    var fieldsBuf = [_]SchemaDef.Type.Struct.Field{.{ .name = undefined, .typeName = undefined }} ** MaxFields;
-    return SchemaParser.init(schema, &typesBuf, &fieldsBuf);
-}
-
 pub const SchemaParser = struct {
     const Self = @This();
 
