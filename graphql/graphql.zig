@@ -11,19 +11,19 @@ const DefaultQueryParser = queryPkg.DefaultQueryParser;
 const QueryDef = queryPkg.QueryDef;
 
 pub fn Schema(comptime schema: []const u8) type {
+    const schemaDef = blk: {
+        const MaxTypes = 10;
+        const MaxFields = 10;
+
+        var typesBuf = [_]SchemaDef.Type{undefined} ** MaxTypes;
+        var fieldsBuf = [_]SchemaDef.Type.Struct.Field{undefined} ** MaxFields;
+        var parser = SchemaParser.init(schema, &typesBuf, &fieldsBuf);
+
+        break :blk try parser.parse();
+    };
+
     return struct {
         pub fn typeForQuery(comptime query: []const u8) !type {
-            var schemaDef = blk: {
-                const MaxTypes = 10;
-                const MaxFields = 10;
-
-                var typesBuf = [_]SchemaDef.Type{undefined} ** MaxTypes;
-                var fieldsBuf = [_]SchemaDef.Type.Struct.Field{undefined} ** MaxFields;
-                var parser = SchemaParser.init(schema, &typesBuf, &fieldsBuf);
-
-                break :blk try parser.parse();
-            };
-
             const queryDef = blk: {
                 var parser = DefaultQueryParser(query);
                 break :blk try parser.parse();
