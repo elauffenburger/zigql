@@ -212,15 +212,21 @@ test "parses user query" {
     const assert = std.debug.assert;
 
     var parser = DefaultQueryParser(
-        \\ user {
-        \\   id
-        \\   name
+        \\ query {
+        \\   user {
+        \\     id
+        \\     name
+        \\   }
         \\ }
     );
 
-    const query = try parser.parse();
+    const q = try parser.parse();
 
-    const user = query.selector.?.field;
+    const query = q.selector.?.field;
+    assert(std.mem.eql(u8, query.name, "query"));
+    assert(query.children.len == 1);
+
+    const user = query.children[0].field;
     assert(std.mem.eql(u8, user.name, "user"));
     assert(user.children.len == 2);
 
