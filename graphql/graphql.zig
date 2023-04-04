@@ -11,23 +11,13 @@ const DefaultQueryParser = queryPkg.DefaultQueryParser;
 const QueryDef = queryPkg.QueryDef;
 
 pub fn Schema(comptime schema: []const u8) type {
-    const schemaDef = blk: {
-        const MaxTypes = 10;
-        const MaxFields = 10;
-
-        var typesBuf = [_]SchemaDef.Type{undefined} ** MaxTypes;
-        var fieldsBuf = [_]SchemaDef.Type.Struct.Field{undefined} ** MaxFields;
-        var parser = SchemaParser.init(schema, &typesBuf, &fieldsBuf);
-
-        break :blk try parser.parse();
-    };
+    var parser = SchemaParser(10, 10).init(schema);
+    const schemaDef = try parser.parse();
 
     return struct {
         pub fn typeForQuery(comptime query: []const u8) !type {
-            const queryDef = blk: {
-                var parser = DefaultQueryParser(query);
-                break :blk try parser.parse();
-            };
+            var queryParser = DefaultQueryParser(query);
+            const queryDef = try queryParser.parse();
 
             var typeGenerator = TypeGenerator(schemaDef).init();
             const queryType = try typeGenerator.genTypeForSelector(queryDef.selector.?, try typeGenerator.getTypeDefFromSchema("Query"));
@@ -52,10 +42,11 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
         .{ .name = "String", .t = []const u8 },
     };
 
+    comptime var builtTypes = builtInTypes ++ [_]TypeAndName{undefined} ** schemaDef.types.len;
+
     return struct {
         const Self = @This();
 
-        builtTypes: [schemaDef.types.len + builtInTypes.len]TypeAndName = builtInTypes ++ [_]TypeAndName{undefined} ** schemaDef.types.len,
         numBuiltTypes: u32 = builtInTypes.len,
 
         fn init() Self {
@@ -116,7 +107,7 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
 
         fn getOrGenType(comptime self: *Self, comptime typeDef: SchemaDef.Type) !type {
             // Check if we've already generated a type for the type def.
-            for (self.builtTypes[0..self.numBuiltTypes]) |typ| {
+            for (builtTypes[0..self.numBuiltTypes]) |typ| {
                 if (std.mem.eql(u8, typ.name, typeDef.name)) {
                     return typ.t;
                 }
@@ -136,7 +127,7 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
                                     .name = field.name,
                                     .type = blk: {
                                         // Check if this is a built-in type or something we've already generated.
-                                        for (self.builtTypes[0..self.numBuiltTypes]) |typ| {
+                                        for (builtTypes[0..self.numBuiltTypes]) |typ| {
                                             if (std.mem.eql(u8, typ.name, field.typeName)) {
                                                 break :blk typ.t;
                                             }
@@ -162,7 +153,7 @@ fn TypeGenerator(comptime schemaDef: SchemaDef) type {
                     }
                 }),
             };
-            self.builtTypes[self.numBuiltTypes] = typ;
+            builtTypes[self.numBuiltTypes] = typ;
 
             return typ.t;
         }
